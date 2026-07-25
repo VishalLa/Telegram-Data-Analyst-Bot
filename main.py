@@ -29,7 +29,15 @@ async def telegram_webhook(request: Request):
     if len(history) > settings.MAX_HISTORY_PER_CHAT:
         history[:] = history[-settings.MAX_HISTORY_PER_CHAT:]
 
-    reply_json = await answer_question(history)
+    try:
+        reply_json = await answer_question(history)
+    except Exception as e:
+        # Fallback JSON so the bot ALWAYS sends a response to Telegram
+        import json
+        reply_json = json.dumps({
+            "answer": {"error": f"Failed to process request: {str(e)}"},
+            "log_url": settings.LOG_URL
+        })
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
