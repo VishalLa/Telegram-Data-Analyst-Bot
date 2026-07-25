@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from src.agent import answer_question
-from src.logger import log_event
+from src.logging import log_event
 from src.config import settings
 
 app = FastAPI()
