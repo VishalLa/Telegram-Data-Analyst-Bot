@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     LOG_DIR: str = "logs"
     LOG_FILE: str = "run.jsonl"
-    LOG_URL: str = "https://your-deployed-app.example.com/run.jsonl"
+    LOG_URL: str = "https://telegram-data-analyst-bot-kf8a.onrender.com/run.jsonl"
 
     model_config = SettingsConfigDict(
         env_file=".env",
