@@ -9,10 +9,9 @@ class Settings(BaseSettings):
 
     DEBUG: bool = False
 
-    # --- LLM ---
     LLM_API_KEY: Optional[str] = None
     LLM_BASE_URL: Optional[str] = None
-    MODEL_MANE: Optional[str] = "llama-3.3.70b-versatile"
+    MODEL_NAME: str = "openai/gpt-oss-120b"
     TEMPERATURE: float = 0.0
 
     TELEGRAM_TOKEN: str

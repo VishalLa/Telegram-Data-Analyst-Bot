@@ -2,19 +2,19 @@ import json
 import time
 from typing import Optional
 
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_openai import ChatOpenAI
+from langchain.agents import create_agent
+from langchain_core.messages import ToolMessage
+from langchain_groq import ChatGroq
 
 from .config import settings
-from .logger import log_event
+from .logging import log_event
 from .tools import TOOLS
 
 SYSTEM_PROMPT = """You are a meticulous data analyst.
 
 The user's message is a data-analysis question. It will tell you EXACTLY
 what JSON shape to reply with, e.g.:
-{{"answer": {{"state": "<state name>"}}, "log_url": "<url>"}}
+{"answer": {"state": "<state name>"}, "log_url": "<url>"}
 
 Rules:
 - Only answer the LAST user message; earlier messages (if any) are just context.
@@ -27,30 +27,20 @@ Rules:
   it will be replaced automatically before the reply is sent.
 """
 
-
-prompt = ChatPromptTemplate.from_messages([
-    ("system", SYSTEM_PROMPT),
-    MessagesPlaceholder("chat_history", optional=True),
-    ("human", "{input}"),
-    MessagesPlaceholder("agent_scratchpad"),
-])
-
-_SHARED_LLM: Optional[ChatOpenAI] = None
-_SHARED_AGENT: Optional[AgentExecutor] = None
+_SHARED_LLM: Optional[ChatGroq] = None
+_SHARED_AGENT = None
+MAX_RECURSION_LIMIT = 12
 
 
-def _build_llm() -> ChatOpenAI:
-    kwargs = dict(
+def _build_llm() -> ChatGroq:
+    return ChatGroq(
         model=settings.MODEL_NAME,
         temperature=settings.TEMPERATURE,
         api_key=settings.LLM_API_KEY,
     )
-    if settings.LLM_BASE_URL:
-        kwargs["base_url"] = settings.LLM_BASE_URL
-    return ChatOpenAI(**kwargs)
 
 
-def get_shared_llm() -> ChatOpenAI:
+def get_shared_llm() -> ChatGroq:
     global _SHARED_LLM
     if _SHARED_LLM is None:
         _SHARED_LLM = _build_llm()
@@ -62,21 +52,15 @@ def reset_shared_llm() -> None:
     _SHARED_LLM = None
 
 
-def _build_agent_executor() -> AgentExecutor:
+def _build_agent():
     llm = get_shared_llm()
-    _agent = create_tool_calling_agent(llm, TOOLS, prompt)
-    return AgentExecutor(
-        agent=_agent,
-        tools=TOOLS,
-        return_intermediate_steps=True, 
-        max_iterations=6,
-    )
+    return create_agent(model=llm, tools=TOOLS, system_prompt=SYSTEM_PROMPT)
 
 
-def get_shared_agent() -> AgentExecutor:
+def get_shared_agent():
     global _SHARED_AGENT
     if _SHARED_AGENT is None:
-        _SHARED_AGENT = _build_agent_executor() 
+        _SHARED_AGENT = _build_agent()
     return _SHARED_AGENT
 
 
@@ -98,26 +82,37 @@ def _clean_json_text(text: str) -> str:
 
 async def answer_question(history: list[str]) -> str:
     question = history[-1]
-    chat_history = [("human", turn) for turn in history[:-1]]
 
     log_event({"stage": "received", "question": question, "history": history, "ts": time.time()})
 
+    messages = [{"role": "user", "content": turn} for turn in history[:-1]]
+    messages.append({"role": "user", "content": question})
+
     agent = get_shared_agent()
-    result = await agent.ainvoke({
-        "input": question,
-        "chat_history": chat_history,
-    })
+    result = await agent.ainvoke(
+        {"messages": messages},
+        config={"recursion_limit": MAX_RECURSION_LIMIT},
+    )
 
-    for action, observation in result.get("intermediate_steps", []):
-        log_event({
-            "stage": "tool_call",
-            "tool": action.tool,
-            "tool_input": action.tool_input,
-            "observation": str(observation)[:2000],
-            "ts": time.time(),
-        })
 
-    raw_output = _clean_json_text(result.get("output", ""))
+    for msg in result["messages"]:
+        if isinstance(msg, ToolMessage):
+            log_event({
+                "stage": "tool_call",
+                "tool": msg.name,
+                "observation": str(msg.content)[:2000],
+                "ts": time.time(),
+            })
+
+    final_message = result["messages"][-1]
+    raw_content = final_message.content
+
+    if isinstance(raw_content, list):
+        raw_content = "".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in raw_content
+        )
+    raw_output = _clean_json_text(raw_content)
     log_event({"stage": "llm_raw_reply", "raw": raw_output, "ts": time.time()})
 
     try:
