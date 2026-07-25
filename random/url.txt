@@ -1,2 +1,0 @@
-https://api.telegram.org/bot8942936472:AAGq21INqazg3C8M-F4jHo_y6QiVPx8bTsc/getme
-https://api.telegram.org/bot8942936472:AAGq21INqazg3C8M-F4jHo_y6QiVPx8bTsc/setWebhook?url=https://telegram-data-analyst-bot-kf8a.onrender.com/webhook
