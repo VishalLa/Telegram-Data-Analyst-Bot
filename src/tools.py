@@ -26,7 +26,6 @@ async def fetch_csv_as_dataframe(url: str) -> str:
 
 
 @tool
-@tool
 async def fetch_csv_as_dataframe(url: str) -> str:
     """
     Fetches a CSV file from a given public URL, loads it into a pandas DataFrame, 
