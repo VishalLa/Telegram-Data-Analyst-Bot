@@ -1,4 +1,5 @@
 import os
+import json
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -29,7 +30,14 @@ async def telegram_webhook(request: Request):
     if len(history) > settings.MAX_HISTORY_PER_CHAT:
         history[:] = history[-settings.MAX_HISTORY_PER_CHAT:]
 
-    reply_json = await answer_question(history)
+    try:
+        reply_json = await answer_question(history)
+    except Exception as e:
+        log_event({"stage": "error", "error": str(e)})
+        reply_json = json.dumps({
+            "answer": {"error": f"Processing error: {str(e)}"},
+            "log_url": settings.LOG_URL
+        }, ensure_ascii=False)
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
@@ -45,8 +53,6 @@ async def telegram_webhook(request: Request):
 def get_log():
     """
     Serves the JSONL log publicly so `log_url` in your replies is wget-able.
-    Only use this if your host's filesystem persists between requests -
-    otherwise prefer committing logs to GitHub or a cloud bucket instead.
     """
     if not os.path.exists(settings.LOG_PATH):
         return JSONResponse({"error": "no logs yet"}, status_code=404)

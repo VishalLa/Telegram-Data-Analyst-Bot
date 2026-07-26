@@ -1,5 +1,5 @@
 import io
-
+import os
 import httpx
 import pandas as pd
 from langchain_core.tools import tool
@@ -36,10 +36,16 @@ async def run_pandas_query(url: str, pandas_expression: str) -> str:
     The DataFrame is available as the variable `df`.
     Example pandas_expression: 'df.groupby("state")["mortality"].max()'
     """
-    path = f"/tmp/{abs(hash(url))}.pkl"
-    df = pd.read_pickle(path)
-    result = eval(pandas_expression)
-    return str(result)
+    try:
+        path = f"/tmp/{abs(hash(url))}.pkl"
+        if not os.path.exists(path):
+            return f"Error: Dataset for URL '{url}' has not been fetched yet. You must run fetch_csv_as_dataframe(url) first."
+
+        df = pd.read_pickle(path)
+        result = eval(pandas_expression)
+        return str(result)
+    except Exception as e:
+        return f"Error executing query on DataFrame: {str(e)}"
 
 
 TOOLS = [fetch_csv_as_dataframe, run_pandas_query]

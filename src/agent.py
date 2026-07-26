@@ -18,13 +18,9 @@ what JSON shape to reply with, e.g.:
 
 Rules:
 - Only answer the LAST user message; earlier messages (if any) are just context.
-- If the question references a public dataset (MOSPI or similar) and you
-  need exact figures, use the fetch_csv_as_dataframe and run_pandas_query
-  tools rather than guessing.
-- When you are done, reply with ONLY the JSON object requested by the
-  question - no markdown fences, no extra commentary, nothing before or
-  after it. Leave the log_url value as the placeholder "LOG_URL_PLACEHOLDER";
-  it will be replaced automatically before the reply is sent.
+- IF THE DATA IS INLINE (directly in the text), analyze it directly without calling tools.
+- IF A PUBLIC CSV URL IS PROVIDED, use `fetch_csv_as_dataframe` first to inspect the data, then `run_pandas_query` if needed.
+- When you are done, reply with ONLY the JSON object requested by the question - no markdown fences, no extra commentary, nothing before or after it. Leave the log_url value as the placeholder "LOG_URL_PLACEHOLDER"; it will be replaced automatically before the reply is sent.
 """
 
 _SHARED_LLM: Optional[ChatGroq] = None
